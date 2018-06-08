@@ -1,0 +1,14 @@
+AC_INIT(src/f6-split-tool.c)
+AM_INIT_AUTOMAKE(f6-split-tool, 0.0.3)
+AM_MAINTAINER_MODE
+
+AC_PROG_CC
+AC_SUBST(CFLAGS)
+AC_SUBST(CPPFLAGS)
+AC_SUBST(LDFLAGS)
+
+AC_OUTPUT([
+        Makefile        \
+        src/Makefile
+])
+

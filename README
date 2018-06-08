@@ -1,10 +1,10 @@
 Purpose
 =======
 The f6-split-tool is a little helper tool to extract the exercise data in RAW 
-data files from Polar F6 heartrate monitors on Linux. The RAW data can be 
-captured by using the F6's SonicLink and the rs200-decoder tool by Jani Hursti. 
-The split tool is neccessary to make the gathered data usable for SportsTracker
-/ PolarViewer by Stefan Saring.
+data files from Polar F6 and F11 heartrate monitors on Linux. The RAW data can 
+be captured by using the F6's SonicLink and the rs200-decoder tool by Jani 
+Hursti. The split tool is neccessary to make the gathered data usable for 
+SportsTracker / PolarViewer by Stefan Saring.
 However, the f6-split-tool is only intended to be a transitional solution until
 a more sophisticated tool is available. So stay tuned and check back regularly.
 
@@ -18,25 +18,22 @@ computer using the rs200-decode tool:
 After that, use the f6-split-tool to extract the exercises from the previously
 gathered dump:
 
-	$ f6-split-tool dump.bin
+	$ f6-split-tool <watch> dump.bin
 
-This will generate 12 individual files for each exercise. The files are called
-"exercise_X.frd" where X is a number between 0 and 11. 0 is the most recent 
-exercise whereas exercise 11 is the oldest in the watch's memory. The exercise 
-files will also contain the total cumulative exercise duration as well as the 
-cumulative calories burned (this is added by the f6-split-tool). The *.frd files
-can then be imported into SportsTracker/PolarViewer.
+where <watch> is either --f6 or --f11.
+
+This will generate up to 12 individual files for each exercise. The files are 
+called "exercise_X.frd" where X is a number between 0 and 11. 0 is the most 
+recent exercise whereas exercise 11 is the oldest in the watch's memory. The 
+exercise files will also contain the total cumulative exercise duration as well 
+as the cumulative calories burned (this is added by the f6-split-tool). The 
+*.frd files can then be imported into SportsTracker/PolarViewer.
 
 
 Installation
 ============
-Unpack the tarball and build the program using make. After that, the tool is 
-ready to use.
+See INSTALL for installation instructions.
 
-	$ tar xf f6-split-tool-x.y.z.tar.gz
-	$ cd f6-split-tool-x.y.z/
-	$ make
-
-2008-05-07, Roland Hostettler
+2008-09-14, Roland Hostettler <r.hostettler@gmx.ch>
 http://toazter.ch/sites/F6SplitTool
 

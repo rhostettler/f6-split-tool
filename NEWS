@@ -1,0 +1,14 @@
+NEWS
+====
+
+0.0.3
+  * Added F11 support (thanks to Dominik Schmidt)
+  * Added autotools support
+
+0.0.2
+  * Several bugfixes (thanks to Máirín Duffy)
+  * Code cleanup
+
+0.0.1
+  * Initial release
+

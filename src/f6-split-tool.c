@@ -1,51 +1,59 @@
 /*
  * f6-split-tool.c -- Version 0.0.2
  * Extracts RAW exercise data from the RAW sonic link data captured using 
- * rs200_decode for the Polar F6 HRM.
+ * rs200_decode for the Polar F6/F11 HRMs.
  *
  * Roland Hostettler <r.hostettler@gmx.ch>
  * 2008-01-31
  * 2008-04-10
+ * 2008-09-04
  * 
- * License under the GNU GPL v2
- * 
- * Note: This is only a temporary solution until a more sophisticated tool is 
- * available.
+ * Licensed under the GNU GPL v2
  */
 
 /* includes */
 #include <stdio.h>
+#include <string.h>
 
-/* definitions */
-#define	EXERCISES_COUNT		12
-#define HEADER_LENGTH		8
-#define SECTION_LENGTH		255
-#define	SECTION_HEADER_LENGTH	3
-#define	EXERCISE_LENGTH		43
-#define SECTION_START		0x55
-#define	EXERCISE_START		0x80
-#define	FILE_END		0x07
+/* local includes */
+#include "f6-split-tool.h"
+#include "f6.h"
+#include "f11.h"
+
+/* array of available monitors */
+struct hrm_defs *monitors[2] = {&f6_defs, &f11_defs};
 
 /*
  * splits the file into sub-files containing either diary, totals or an exercise
  * 
- * TODO: export totals
  * TODO: export diary
- * TODO: Header check, etc.
+ * TODO: Header check
  */
-int split_file(char *infile) {
+int split_file(int hrm, char *infile) {
 	FILE *fin = NULL;
 	FILE *fout = NULL;
 	char outfile[20];
-	unsigned char c = 0;
 	int i = 0;
 	int j = 0;
-	int sec_bytes_read = 0;
-	int ex_bytes_read = 0;
-	int ex_read = 0;
-	int num_sections = 0;
-	int section_nr = 0;
-	int section_data_len = 0;
+	
+	/* exercise data */
+	unsigned int num_exercises = 0;
+	unsigned int ex_read = 0;
+	unsigned int ex_bytes_read = 0;
+
+	/* diary data */
+	unsigned int num_diary_weeks = 0;
+	unsigned int diary_data_len = 0;
+	unsigned int diary_bytes_read = 0;
+	
+	/* sections data */
+	unsigned int num_sections = 0;
+	unsigned int section_nr = 0;
+	unsigned int section_data_len = 0;
+	unsigned int sec_bytes_read = 0;
+	
+	/* other storage */
+	unsigned char c = 0;
 	unsigned char exetime_sec, exetime_min, exetime_h;
 	unsigned char calsum_b1, calsum_b2, calsum_b3;
 	
@@ -57,7 +65,7 @@ int split_file(char *infile) {
 	}
 	
 	/* start reading the header */
-	if(fgetc(fin) != SECTION_START) {
+	if(fgetc(fin) != monitors[hrm]->section_start_marker) {
 		printf("Header start not found, stop.\n");
 		return -1;
 	}
@@ -68,10 +76,10 @@ int split_file(char *infile) {
 	 */
 	fseek(fin, 2, SEEK_CUR);
 	num_sections = fgetc(fin);
-	fseek(fin, HEADER_LENGTH-4, SEEK_CUR);
+	fseek(fin, monitors[hrm]->header_len-4, SEEK_CUR);
 	
 	/* start reading section 1 */
-	if(fgetc(fin) != SECTION_START) {
+	if(fgetc(fin) != monitors[hrm]->section_start_marker) {
 		printf("Section 1 start not found, stop.\n");
 		return -1;
 	}
@@ -88,7 +96,9 @@ int split_file(char *infile) {
 	 */
 	/* read the (useful) totals stored in section 1
 	   store the total execution time */
-	fseek(fin, 3, SEEK_CUR);
+	fseek(fin, 1, SEEK_CUR);
+	num_diary_weeks = fgetc(fin)+1;
+	num_exercises = fgetc(fin);
 	exetime_sec = fgetc(fin);
 	exetime_min = fgetc(fin);
 	exetime_h = fgetc(fin);
@@ -101,68 +111,80 @@ int split_file(char *infile) {
 	calsum_b3 = fgetc(fin);
 	sec_bytes_read += 6;
 	
-	/* skip the totals dates as we have no use for that right now */
+	/* skip the totals' dates as we have no use for them right now */
 	fseek(fin, 13, SEEK_CUR);
 	sec_bytes_read += 13;
-	
+
+	/* calculate the diary data length */
+	diary_data_len = num_diary_weeks*monitors[hrm]->diary_len;
+
 	/*
 	 * read the remaining data sections
 	 * only exercise data marked by EXERCISE_START (0x80) is processed,
 	 * the diary in front of the exercises is skipped
 	 */
-	for(j = 0; j < num_sections; j++) {
+	for(j = section_nr; j <= num_sections; j++) {
 		/* read the whole bunch of section data */
 		for(i = sec_bytes_read; i < section_data_len; i++) {
 			c = fgetc(fin);
 			
-			/*
-			 * check wheter we are expecting the beginning of an 
-			 * exercise record and the marker was found
+			/* 
+			 * check whether the read byte is a diary byte or an 
+			 * exercise byte. In the first case, we just ignore that
+			 * byte.
 			 */
-			if(c == EXERCISE_START && ex_bytes_read == 0) {
-				/* open the output file */
-				sprintf(outfile, "exercise_%d.frd", ex_read);
-				fout = fopen(outfile, "wb");
+			if(diary_bytes_read < diary_data_len) {
+				diary_bytes_read++;
+			} else if(ex_read < num_exercises) {
+				/*
+				 * check whether we are expecting the beginning of an 
+				 * exercise record and the marker was found
+				 */
+				if(ex_bytes_read == 0) {
+					/* open the output file */
+					sprintf(outfile, "exercise_%d.frd", ex_read);
+					fout = fopen(outfile, "wb");
 			
-				if(fout == NULL) {
-					printf("Error opening output file, stop.\n");
-					return -1;
+					if(fout == NULL) {
+						printf("Error opening output file, stop.\n");
+						return -1;
+					}
 				}
-			}
 
-			/* if we're reading an exercise, write the data out */
-			if(fout != NULL) {		
-				fputc(c, fout);
-				ex_bytes_read++;
-			}
+				/* if we're reading an exercise, write the data out */
+				if(fout != NULL) {		
+					fputc(c, fout);
+					ex_bytes_read++;
+				}
 		
-			/*
-			 * close the output file and reset the counter if the
-			 * whole exercise record has been read
-			 *
-			 * also append the total exercise time and calories 
-			 * consumption to the exercies
-			 */
-			if(ex_bytes_read == EXERCISE_LENGTH) {
-				fputc(exetime_sec, fout);
-				fputc(exetime_min, fout);
-				fputc(exetime_h, fout);
-				fputc(calsum_b1, fout);
-				fputc(calsum_b2, fout);
-				fputc(calsum_b3, fout);
-				fclose(fout);
-				fout = NULL;
-				ex_bytes_read = 0;
-				ex_read++;
+				/*
+				 * close the output file and reset the counter if the
+				 * whole exercise record has been read
+				 *
+				 * also append the total exercise time and calories 
+				 * consumption to the exercies
+				 */
+				if(ex_bytes_read == monitors[hrm]->exercise_len) {
+					fputc(exetime_sec, fout);
+					fputc(exetime_min, fout);
+					fputc(exetime_h, fout);
+					fputc(calsum_b1, fout);
+					fputc(calsum_b2, fout);
+					fputc(calsum_b3, fout);
+					fclose(fout);
+					fout = NULL;
+					ex_bytes_read = 0;
+					ex_read++;
+				}
 			}
 		}
 		
 		/* forward the remaining padding bytes */
-		fseek(fin, SECTION_LENGTH-SECTION_HEADER_LENGTH-section_data_len, SEEK_CUR);
+		fseek(fin, monitors[hrm]->section_len-monitors[hrm]->section_header_len-section_data_len, SEEK_CUR);
 		
-		/* check for the section header */
-		c = getc(fin);
-		if(c != SECTION_START && c != FILE_END) {
+		/* check and read the next section's header */
+		c = fgetc(fin);
+		if(c != monitors[hrm]->section_start_marker && c != monitors[hrm]->eof_marker) {
 			printf("Section start or end-of-file not found, stop.\n");
 			return -1;
 		} else {		
@@ -173,7 +195,9 @@ int split_file(char *infile) {
 		}
 	}
 
+	/* clean up and inform the user */
 	fclose(fin);
+	printf("Splitting completed, found %d exercise(s).\n", num_exercises);
 	return 0;
 }
 
@@ -182,7 +206,32 @@ int split_file(char *infile) {
  */
 void usage(void) {
 	printf("Usage:\n");
-	printf("  f6-split-tool FILE\n\n");
+	printf("f6-split-tool TYPE FILE\n\n");
+	printf("  TYPE\tHeartrate monitor type:\n");
+	printf("    --f6\tPolar F6\n");
+	printf("    --f11\tPolar F11\n\n");
+	printf("  FILE\tBinary dumpfile\n\n");
+}
+
+/*
+ * checks the supplied program arguments, returns the specified HRM type
+ */
+signed int check_args(int argc, char *argv[]) {
+	/* check the number of supplied arguments */
+	if(argc != 3) {
+		return -1;
+	/* check whether --f6 or --F6 was specified */
+	} else if(!strcmp(argv[1], "--f6") || !strcmp(argv[1], "--F6")) {
+		return HRM_TYPE_F6;
+	/* check whether --f11 or --F11 was specified */
+	} else if(!strcmp(argv[1], "--f11") || !strcmp(argv[1], "--F11")) {
+		return HRM_TYPE_F11;
+	/* no valid watch was specified -> error */
+	} else {
+		return -1;
+	}
+
+	return -1;
 }
 
 /*
@@ -190,15 +239,20 @@ void usage(void) {
  */
 int main(int argc, char *argv[]) {
 	int err = 0;
-
-	if(argc != 2) {
+	int hrm = -1;
+	
+	/* check the arguments and determine the chosen HRM type (F6/F11) */
+	hrm = check_args(argc, argv);
+	if(hrm == -1) {
 		usage();
 		return 1;
 	}
 	
-	printf("Splitting exercises in file %s.\n", argv[1]);
-	err = split_file(argv[1]);
+	/* split the dump */
+	printf("Splitting exercises in file %s.\n", argv[2]);
+	err = split_file(hrm, argv[2]);
 	
+	/* summary */
 	if(err == 0) {
 		printf("Successfully completed.\n");
 	} else {

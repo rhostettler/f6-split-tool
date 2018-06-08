@@ -1,0 +1,57 @@
+commit 9683509dd0a73c7c2664d2753b0255340afefba7
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Tue Sep 9 13:56:14 2008 +0200
+
+    * Made splitting algorithm more generic, taking care of the diary
+    * Added support for reading number of exercises and diary entries from the RAW file
+
+commit 49efb9bd977456e345dcd197dad0a1252b63bb3f
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Thu Sep 4 10:05:04 2008 +0200
+
+    * Added basic support for F11 watches (thanks to Dominik Schmidt)
+    * Added more modularity
+
+commit b318ca08cd13f6a841579b0bf2ddd64f28751470
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Wed May 7 22:35:49 2008 +0200
+
+    * Minor style updates
+
+commit 986616db0a3693694c6a1e75cdcddee874faaf84
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Sat Apr 26 15:49:48 2008 +0200
+
+    * Added more verbosity
+    * Replaced error() calls by printf() + return codes
+
+commit 77317270fb10e21081d636e767d58221f518631c
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Thu Apr 10 17:50:54 2008 +0200
+
+    * Code cleanup
+
+commit 479cfeda465d6226c6d20c65c925a3f6d9dd23db
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Thu Apr 10 17:25:23 2008 +0200
+
+    * Removing untracked binary file
+
+commit 636ee28c289137a1bb01208e832d555f02171ea5
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Thu Apr 10 17:16:58 2008 +0200
+
+    * Fixed problem with new watches which don't transmit the whole memory (thanks to Máirín Duffy)
+
+commit 001ae3dc8b8fdadc32bcf249e9be85c49f050be4
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Wed Apr 9 17:32:09 2008 +0200
+
+    * Added section number extraction from header information
+    * Fixed glibc problem (Máirín Duffy)
+
+commit cadcf5c348f5feabde1c3cbe84f193155812794a
+Author: Roland Hostettler <r.hostettler@gmx.ch>
+Date:   Mon Apr 7 21:04:00 2008 +0200
+
+    Initial import based on version 0.0.1
