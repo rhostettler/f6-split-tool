@@ -1,10 +1,11 @@
 /*
- * f6-split-tool.c -- Version 0.0.1
+ * f6-split-tool.c -- Version 0.0.2
  * Extracts RAW exercise data from the RAW sonic link data captured using 
  * rs200_decode for the Polar F6 HRM.
  *
  * Roland Hostettler <r.hostettler@gmx.ch>
  * 2008-01-31
+ * 2008-04-10
  * 
  * License under the GNU GPL v2
  * 
@@ -14,7 +15,6 @@
 
 /* includes */
 #include <stdio.h>
-#include <error.h>
 
 /* definitions */
 #define	EXERCISES_COUNT		12
@@ -22,19 +22,9 @@
 #define SECTION_LENGTH		255
 #define	SECTION_HEADER_LENGTH	3
 #define	EXERCISE_LENGTH		43
-
-/* 
- * forward in the file
- */
-int ffwd(FILE *fd, int bytes) {
-	int i = 0;
-	
-	while(!feof(fd) && i++ < bytes) {
-		fgetc(fd);
-	}
-	
-	return bytes;
-}
+#define SECTION_START		0x55
+#define	EXERCISE_START		0x80
+#define	FILE_END		0x07
 
 /*
  * splits the file into sub-files containing either diary, totals or an exercise
@@ -44,98 +34,116 @@ int ffwd(FILE *fd, int bytes) {
  * TODO: Header check, etc.
  */
 int split_file(char *infile) {
-	FILE *fin;
+	FILE *fin = NULL;
 	FILE *fout = NULL;
 	char outfile[20];
-	unsigned char c;
+	unsigned char c = 0;
 	int i = 0;
 	int j = 0;
+	int sec_bytes_read = 0;
 	int ex_bytes_read = 0;
 	int ex_read = 0;
+	int num_sections = 0;
 	int section_nr = 0;
 	int section_data_len = 0;
 	unsigned char exetime_sec, exetime_min, exetime_h;
 	unsigned char calsum_b1, calsum_b2, calsum_b3;
 	
-	
+	/* open the input file */
 	fin = fopen(infile, "rb");
 	if(fin == NULL) {
-		error(1, 0, "File \"%s\" could not be opened, stop.\n", infile);
+		printf("Input file \"%s\" could not be opened, stop.\n", infile);
+		return -1;
 	}
 	
-#if 0
-	/* read the section start delimiter */
-	if(fgetc(fin) != 0x55) {
-		error(1, 0, "Section start not found, stop.\n");
+	/* start reading the header */
+	if(fgetc(fin) != SECTION_START) {
+		printf("Header start not found, stop.\n");
+		return -1;
 	}
+	
+	/*
+	 * skip two unknown fields, then read the number of sections and
+	 * skip the rest of the header (might be CRC-16, see rs200_decode)
+	 */
+	fseek(fin, 2, SEEK_CUR);
+	num_sections = fgetc(fin);
+	fseek(fin, HEADER_LENGTH-4, SEEK_CUR);
+	
+	/* start reading section 1 */
+	if(fgetc(fin) != SECTION_START) {
+		printf("Section 1 start not found, stop.\n");
+		return -1;
+	}
+	
+	/* read section header:  */
+	section_nr = fgetc(fin);
+	section_data_len = fgetc(fin);
+	sec_bytes_read = 0;
 
-	/* skip the first 8+255 = 263 bytes (header, totals)*/
-	ffwd(fin, HEADER_LENGTH+SECTION_LENGTH);
-#endif
-
-	/* read the totals */
 	/* 
 	 * note: the totals are added to each exercise in the end and this is
-	 * introduced by the split-tool. this is only as an aid so that PolarViewer
+	 * introduced by the f6-split-tool. this is only as an aid so that PolarViewer
 	 * (part of SportsTracker) can display them
 	 */
-
-	/* store the total execution time */
-	ffwd(fin, HEADER_LENGTH);
-	ffwd(fin, 6);
+	/* read the (useful) totals stored in section 1
+	   store the total execution time */
+	fseek(fin, 3, SEEK_CUR);
 	exetime_sec = fgetc(fin);
 	exetime_min = fgetc(fin);
 	exetime_h = fgetc(fin);
+	sec_bytes_read += 6;
 	
 	/* store the total calories sum */
-	ffwd(fin, 3);
+	fseek(fin, 3, SEEK_CUR);
 	calsum_b1 = fgetc(fin);
 	calsum_b2 = fgetc(fin);
 	calsum_b3 = fgetc(fin);
+	sec_bytes_read += 6;
 	
-	/* skip the diary-part */
-	ffwd(fin, SECTION_LENGTH-6-3-3-3);
+	/* skip the totals dates as we have no use for that right now */
+	fseek(fin, 13, SEEK_CUR);
+	sec_bytes_read += 13;
 	
-	/* read the 3 remaining sections */
-	for(j = 0; j < 3; j++) {
-		/* check for the section header */
-		if((c = getc(fin)) != 0x55) {
-			error(1, 0, "Section start not found, got 0x%2X, expected 0x55 stop\n", c);
-		}
-	
-		/* read the section number and the data length */
-		/* NOTE: a check could be added here! */
-		section_nr = fgetc(fin);
-		section_data_len = fgetc(fin);
-	
+	/*
+	 * read the remaining data sections
+	 * only exercise data marked by EXERCISE_START (0x80) is processed,
+	 * the diary in front of the exercises is skipped
+	 */
+	for(j = 0; j < num_sections; j++) {
 		/* read the whole bunch of section data */
-		for(i = 0; i < section_data_len; i++) {
+		for(i = sec_bytes_read; i < section_data_len; i++) {
 			c = fgetc(fin);
 			
-			/* check wheter we are expecting the beginning of an 
-			   exercise record and the marker was found */
-			if(c == 0x80 && ex_bytes_read == 0) {
+			/*
+			 * check wheter we are expecting the beginning of an 
+			 * exercise record and the marker was found
+			 */
+			if(c == EXERCISE_START && ex_bytes_read == 0) {
 				/* open the output file */
 				sprintf(outfile, "exercise_%d.frd", ex_read);
 				fout = fopen(outfile, "wb");
 			
 				if(fout == NULL) {
-					error(1, 0, "Error opening output file, stop.\n");
+					printf("Error opening output file, stop.\n");
+					return -1;
 				}
 			}
 
-			/* if there is an output file open, write the read byte
-			   to it */
+			/* if we're reading an exercise, write the data out */
 			if(fout != NULL) {		
 				fputc(c, fout);
 				ex_bytes_read++;
 			}
 		
-			/* close the output file and reset the counter if the
-			   whole exercise record has been read */
+			/*
+			 * close the output file and reset the counter if the
+			 * whole exercise record has been read
+			 *
+			 * also append the total exercise time and calories 
+			 * consumption to the exercies
+			 */
 			if(ex_bytes_read == EXERCISE_LENGTH) {
-				/* append the total exercise time and calories 
-				   consumption to the exercies */
 				fputc(exetime_sec, fout);
 				fputc(exetime_min, fout);
 				fputc(exetime_h, fout);
@@ -143,13 +151,26 @@ int split_file(char *infile) {
 				fputc(calsum_b2, fout);
 				fputc(calsum_b3, fout);
 				fclose(fout);
+				fout = NULL;
 				ex_bytes_read = 0;
 				ex_read++;
 			}
 		}
 		
 		/* forward the remaining padding bytes */
-		ffwd(fin, SECTION_LENGTH-SECTION_HEADER_LENGTH-section_data_len);
+		fseek(fin, SECTION_LENGTH-SECTION_HEADER_LENGTH-section_data_len, SEEK_CUR);
+		
+		/* check for the section header */
+		c = getc(fin);
+		if(c != SECTION_START && c != FILE_END) {
+			printf("Section start or end-of-file not found, stop.\n");
+			return -1;
+		} else {		
+			/* read the section header */
+			section_nr = fgetc(fin);
+			section_data_len = fgetc(fin);
+			sec_bytes_read = 0;
+		}
 	}
 
 	fclose(fin);
@@ -168,12 +189,22 @@ void usage(void) {
  * main
  */
 int main(int argc, char *argv[]) {
+	int err = 0;
+
 	if(argc != 2) {
 		usage();
 		return 1;
 	}
 	
-	return split_file(argv[1]);
+	printf("Splitting exercises in file %s.\n", argv[1]);
+	err = split_file(argv[1]);
+	
+	if(err == 0) {
+		printf("Successfully completed.\n");
+	} else {
+		printf("Stopped due to errors, see messages above.\n");
+	}
+	
+	return err;
 }
 
-/* eof */

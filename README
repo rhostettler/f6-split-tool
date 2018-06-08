@@ -33,9 +33,10 @@ Installation
 Unpack the tarball and build the program using make. After that, the tool is 
 ready to use.
 
-	$ tar xf f6-split-tool-0.0.1.tar.gz
-	$ cd f6-split-tool-0.0.1/
+	$ tar xf f6-split-tool-x.y.z.tar.gz
+	$ cd f6-split-tool-x.y.z/
 	$ make
 
-2008-02-02, Roland Hostettler
+2008-05-07, Roland Hostettler
 http://toazter.ch/sites/F6SplitTool
+
