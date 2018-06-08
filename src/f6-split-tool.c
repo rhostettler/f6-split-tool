@@ -56,6 +56,9 @@ int split_file(int hrm, char *infile) {
 	unsigned char c = 0;
 	unsigned char exetime_sec, exetime_min, exetime_h;
 	unsigned char calsum_b1, calsum_b2, calsum_b3;
+
+	/*  */
+	unsigned char data[monitors[hrm]->exercise_len+6];
 	
 	/* open the input file */
 	fin = fopen(infile, "rb");
@@ -136,6 +139,8 @@ int split_file(int hrm, char *infile) {
 			if(diary_bytes_read < diary_data_len) {
 				diary_bytes_read++;
 			} else if(ex_read < num_exercises) {
+
+#if 0
 				/*
 				 * check whether we are expecting the beginning of an 
 				 * exercise record and the marker was found
@@ -156,7 +161,7 @@ int split_file(int hrm, char *infile) {
 					fputc(c, fout);
 					ex_bytes_read++;
 				}
-		
+
 				/*
 				 * close the output file and reset the counter if the
 				 * whole exercise record has been read
@@ -173,6 +178,24 @@ int split_file(int hrm, char *infile) {
 					fputc(calsum_b3, fout);
 					fclose(fout);
 					fout = NULL;
+					ex_bytes_read = 0;
+					ex_read++;
+				}
+#endif
+
+				data[ex_bytes_read] = c;
+				ex_bytes_read++;
+				if(ex_bytes_read == monitors[hrm]->exercise_len) {
+					data[ex_bytes_read] = exetime_sec;
+					data[ex_bytes_read+1] = exetime_min;
+					data[ex_bytes_read+2] = exetime_h;
+					data[ex_bytes_read+3] = calsum_b1;
+					data[ex_bytes_read+4] = calsum_b2;
+					data[ex_bytes_read+5] = calsum_b3;
+
+					if(dump(&data, ex_bytes_read+5) == -1) {
+						return -1;
+					}
 					ex_bytes_read = 0;
 					ex_read++;
 				}
@@ -199,6 +222,31 @@ int split_file(int hrm, char *infile) {
 	fclose(fin);
 	printf("Splitting completed, found %d exercise(s).\n", num_exercises);
 	return 0;
+}
+
+/*
+ * dump the contents of data
+ */
+int dump(unsigned char *data, int datalen) {
+	FILE *fout = NULL;
+	unsigned char outfile[14];
+	int i = 0;
+	
+	/* open the output file */
+	sprintf(outfile, "20%02d-%02d-%02d.frd", data[10], data[9], data[8]);
+	fout = fopen(outfile, "wb");
+	
+	if(fout == NULL) {
+		printf("Error opening output file, stop.\n");
+		return -1;
+	}
+
+	/* write all the data */
+	for(i = 0; i <= datalen; i++) {
+		fputc(data[i], fout);
+	}
+
+	fclose(fout);
 }
 
 /*
